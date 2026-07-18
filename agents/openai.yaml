@@ -1,0 +1,4 @@
+interface:
+  display_name: "Code Change Scope"
+  short_description: "Scope code changes by project priority and maintenance cost"
+  default_prompt: "Use $scope-code-change before implementing this code change to set its scope and complexity budget."
