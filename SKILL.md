@@ -1,6 +1,6 @@
 ---
 name: scope-code-change
-description: Scope and right-size every code change before implementation. Use before writing or modifying code for features, bug fixes, refactors, optimizations, or behavior-changing configuration so the change respects the project's primary purpose, requirement priority, complexity budget, and long-term maintainability.
+description: Scope and right-size every code change before implementation. Use before writing or modifying code for features, bug fixes, refactors, optimizations, or behavior-changing configuration so the change respects the project's primary purpose, requirement priority, whole-system impact, cross-layer adaptation, complexity budget, and long-term maintainability.
 ---
 
 # Scope Code Change
@@ -15,6 +15,17 @@ Before editing code, establish:
 - Change budget: expected files, approximate added lines, and new concepts.
 
 State these briefly in commentary before implementation. Base them on the current repository, not the request in isolation.
+
+## Whole-system impact gate
+
+Treat every code change as a system change. Before editing:
+
+- Map the affected producers, consumers, state, persistence, APIs, configuration, logs and metrics, startup/reload/shutdown paths, runtime modes, and operator or UI behavior.
+- Identify the shared invariants and every required adaptation. Do not update one representation while leaving another stale.
+- Check second-order effects on correctness, performance, reliability, security, data consistency, operations, and maintenance.
+- Prefer a globally coherent change over a locally elegant one. Reject a local optimization that shifts complexity, ambiguity, or failure into the rest of the project.
+
+Keep the assessment proportional to the change, but do not start implementation until the local change's role in the whole system is clear.
 
 ## Elimination-first
 
@@ -61,11 +72,13 @@ For a localized bug, broad recovery machinery, new state machines, or several hu
 
 Prefer fewer states, fewer branches, fewer files, and one obvious data flow. Treat maintainability as part of the requirement, not cleanup after it.
 
-## Before delivery
+## Post-change system review
 
-Check that:
+Before delivery:
 
-- The requested behavior works end to end.
-- The main path remains understandable and intact.
-- The diff stayed near its stated budget.
-- No temporary tests, debug files, or scaffolding remain.
+1. Review syntax and build validity, code quality, obvious bugs, lifecycle and resource cleanup, concurrency hazards, and dead or superseded paths.
+2. Test the changed behavior against the original whole-system assessment and user outcome, including affected integrations and runtime modes. Delete temporary test files and scaffolding immediately after use.
+3. Recheck every producer, consumer, state, configuration, log, metric, documentation, and operational adaptation identified before editing.
+4. Re-evaluate the root cause and the whole-system result. Confirm that the change removes the generating mechanism or restores the invariant, and that the changed local part now serves the system better.
+5. Reject or simplify the change if a local metric improved while overall correctness, performance, reliability, clarity, or maintainability became worse.
+6. Confirm the main path remains understandable, the diff stayed near its budget, and no temporary artifacts remain.
