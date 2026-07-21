@@ -25,7 +25,18 @@ Treat every code change as a system change. Before editing:
 - Check second-order effects on correctness, performance, reliability, security, data consistency, operations, and maintenance.
 - Prefer a globally coherent change over a locally elegant one. Reject a local optimization that shifts complexity, ambiguity, or failure into the rest of the project.
 
-Keep the assessment proportional to the change, but do not start implementation until the local change's role in the whole system is clear.
+Do not keep this assessment implicit. Before implementation, output an explicit impact matrix covering every project module or subsystem discovered in the repository, including both affected and unaffected areas. For each area, state:
+
+- Whether it changes.
+- Why it changes or remains unchanged.
+- Which invariant, interface, or state transition was checked.
+- What adaptation or verification is required.
+
+The matrix must cover, where present: input/data ingestion, strategy and signals, gates and risk controls, order creation, amendment and cancellation, execution and fill state transitions, partial fills, positions and exposure, accounting and PnL, persistence and database projections, APIs and frontend, configuration and reload, logs and metrics, startup/reconnect/recovery/shutdown, concurrency and resource ownership, live and simulation modes, tests, deployment, and operator workflows.
+
+Do not omit a module because it appears unaffected; explicitly record why it is unaffected. Do not use token, time, or assessment-cost budgets to shorten pre-change reasoning. Keep the eventual implementation small, but make the pre-change system analysis exhaustive enough to prevent local changes from causing global semantic drift. Do not start implementation until the local change's role in the whole system and every required cross-layer adaptation are explicit.
+
+Trace the complete lifecycle of every stateful object touched by the change. For order-related changes, this normally includes creation, admission, placement, open, renewal, cancellation, expiry, rejection, partial fill, full fill, settlement, persistence, projection, display, reload, reconnect, and shutdown. Confirm mutually interacting controls such as price tolerance, liquidity gates, flow controls, stale-book protection, and recovery behavior rather than evaluating each control in isolation.
 
 ## Elimination-first
 

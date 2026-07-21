@@ -1,4 +1,4 @@
 interface:
   display_name: "Code Change Scope"
-  short_description: "Scope code changes by project priority and maintenance cost"
-  default_prompt: "Use $scope-code-change before implementing this code change to set its scope and complexity budget."
+  short_description: "Force a complete project-wide impact assessment before code changes"
+  default_prompt: "Use $scope-code-change before implementing this code change. Output an explicit impact matrix for every affected and unaffected subsystem, trace complete state lifecycles and cross-control interactions, identify the root transition, then keep implementation small and verify the whole system after the change."
