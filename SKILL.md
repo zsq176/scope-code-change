@@ -83,13 +83,14 @@ For a localized bug, broad recovery machinery, new state machines, or several hu
 
 Prefer fewer states, fewer branches, fewer files, and one obvious data flow. Treat maintainability as part of the requirement, not cleanup after it.
 
-## Post-change system review
+## Mandatory delivery audit
 
-Before delivery:
+After every code change, audit the finished implementation and give an explicit `PASS` or `FAIL` verdict for all three gates:
 
-1. Review syntax and build validity, code quality, obvious bugs, lifecycle and resource cleanup, concurrency hazards, and dead or superseded paths.
-2. Test the changed behavior against the original whole-system assessment and user outcome, including affected integrations and runtime modes. Delete temporary test files and scaffolding immediately after use.
-3. Recheck every producer, consumer, state, configuration, log, metric, documentation, and operational adaptation identified before editing.
-4. Re-evaluate the root cause and the whole-system result. Confirm that the change removes the generating mechanism or restores the invariant, and that the changed local part now serves the system better.
-5. Reject or simplify the change if a local metric improved while overall correctness, performance, reliability, clarity, or maintainability became worse.
-6. Confirm the main path remains understandable, the diff stayed near its budget, and no temporary artifacts remain.
+1. **Problem solved:** reproduce or test the original symptom and prove that its generating mechanism is gone. Passing compilation alone is insufficient.
+2. **System impact:** inspect every affected integration and runtime mode, plus the unchanged main path. Confirm the local fix did not degrade overall correctness, performance, reliability, or maintainability.
+3. **Cleanup complete:** delete superseded code, unreachable branches, obsolete state, configuration, adapters, temporary tests, and scaffolding. Confirm the final diff is the smallest clear implementation.
+
+If any gate fails or cannot be proven, do not deliver. Revert, simplify, or rewrite the implementation, then repeat the complete audit until all three pass.
+
+The final delivery must state the three verdicts and their concrete evidence. Recheck syntax and build validity, obvious bugs, lifecycle and resource cleanup, concurrency hazards, every producer and consumer identified before editing, and all required configuration, logging, metrics, documentation, and operational adaptations.
