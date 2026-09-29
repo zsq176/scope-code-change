@@ -1,101 +1,109 @@
 ---
 name: scope-code-change
-description: Execute code-change tasks with rigor proportionate to risk — whole-system impact awareness, line-specific plans, evidence-based verification, honest reporting. For non-trivial changes (multi-file behavior, concurrency/performance claims, cross-subsystem impact); trivial edits take a lightweight path with no ceremony. Never claims completion without evidence.
+description: Execute a code-change task through a strict staged process — impact analysis, atomic line-specific plan, evidence-gated implementation, code audit, cleanup — with depth scaled to task size, grounded in a reusable set of development principles. Never advance past a failed check or claim completion without evidence.
 ---
 
 # Scope Code Change
 
-## Core philosophy
+This skill binds two things together, and both are mandatory:
 
-Five ideas govern every change, at every size:
+1. **A strict staged process.** Work one stage at a time: produce that stage's complete artifact, audit it, and only then advance to the next stage. A FAIL stays FAIL until the artifact, the evidence, or the hypothesis has actually changed — a verdict is never reworded into a pass. If the evidence you need is outside your authorization, report that blocker instead of looping on an unproven proposal or claiming completion.
+2. **A reusable development philosophy.** The principles at the end of this file are accumulated lessons from past failures. They constrain every plan; they do not choose a solution in advance. Check plans against them; do not recite them.
 
-1. **Know the system before editing it.** A change lives inside a larger system; find what else it touches — including what it must *not* disturb — before choosing an implementation.
-2. **Evidence over confidence.** "It works / it's fixed / it's faster" requires an observation: a passing scenario, a measured comparison, a reproduced bug. A plausible argument is not evidence.
-3. **Repair the cause, not the symptom.** Remove the generator of a failure before reaching for retries, guards, cooling, or broad locks. Containment is not repair.
-4. **Work in verifiable atoms.** Each unit of change is the smallest independently verifiable behavior change, with a known code site and an observable acceptance check.
-5. **Be economical and honest.** Deliver the smallest complete expression; delete what is replaced. A failed check stays failed until the artifact actually changes — never reword a verdict into a pass, and report limits instead of claiming completion.
+Scale the depth to the task. Small tasks take the fast track and skip the paperwork. The evidence and honesty requirements never shrink.
 
-Rigor scales with blast radius, not with habit. Pick the lightest path below that covers the task's risk: skipping ceremony on a small task is correct; skipping evidence never is.
+## Design philosophy
 
-## Choose a path
+Six rules from which everything else follows:
 
-Spend a minute gauging blast radius, then commit:
+1. **The system comes first.** Understand what a change touches — including what it must not disturb — before choosing an implementation. A local fix that silently reshapes another subsystem is the most expensive kind of failure.
+2. **Plans are concrete and atomic.** Each unit of work is the smallest independently verifiable behavior change, pinned to exact code sites, with observable acceptance criteria. Vague directions ("optimize", "harden") are not plan content.
+3. **Evidence decides.** "It works / it's fixed / it's faster" is established by observation — a passing scenario, a measured comparison, a reproduced bug — never by a plausible argument alone.
+4. **Remove causes, not symptoms.** Containment (retries, guards, cooldowns, broad locks) hides a failure; it does not repair it. Find the first invalid transition and remove its generator.
+5. **Be economical.** The deliverable is the smallest complete expression of the proven plan. Replaced code, temporary scaffolding, and unused generality are deleted, not left behind.
+6. **Be honest.** Report what the evidence shows, including its limits. Completion is claimed only along a path of passed checks — never by a final summary alone.
 
-- **Light path** — small and well-understood: one function or file, obvious behavior, easy verification (typo, log line, copy, config value, isolated bug).
-- **Standard path** — a behavioral change across a few files, or anything whose failure modes aren't obvious at a glance. This is the default.
-- **Full path** — architecture or concurrency changes, performance claims, changes crossing subsystem boundaries, or work the user marks as major.
+## Task sizing
 
-When torn between two paths: take the heavier one for analysis, the lighter one for ceremony. A request for a plan only never authorizes production edits, deployment, or transactions; diagnostic work stays within the user's authorization — if evidence needs more, ask.
+Classify the task before starting:
 
-## Light path
+- **Fast track** — the change is small and fully predictable: one or two known code sites, behavior known in advance, verification is a single run. Examples: a typo, a log line, a config value, an isolated bug with an obvious cause.
+- **Full pipeline** — everything else: multiple files, non-obvious failure modes, cross-subsystem impact, concurrency or performance claims, or any task the user marks as major.
 
-1. Glance at callers and related state for hidden coupling — a search, not a matrix.
-2. Make the change; verify by running the affected scenario or test.
-3. Report what changed and the evidence it works. Done.
+When in doubt, use the full pipeline. A request for a plan only never authorizes production edits, deployment, or transactions; diagnostics stay within the user's authorization — if the evidence needs more authority, ask.
 
-## Standard path
+## Fast track
 
-Four questions, in order. Answer each in a few sentences before acting on the next. When an answer exposes a problem, fix that artifact and re-answer; when it invalidates an earlier one, go back upstream — don't patch a broken plan forward. If the user asked only for a plan, stop after question 2.
+Four steps, no gate reports:
 
-1. **Impact** — which subsystems, data flows, and behaviors does this touch, including ones it must not disturb?
-2. **Plan** — per atomic goal: the cause (label facts / inferences / unknowns), the exact target as `file:line` + symbol, the resulting behavior, and observable acceptance. If the cause is unproven, plan a discriminating experiment instead of a speculative repair. No untestable directions — "optimize" and "harden" are either concrete goals or they don't belong.
-3. **Verify** — prove the key mechanism: reproduce the bug, run the discriminating test, measure the comparison. Code reading alone cannot prove a runtime or performance claim. A small reversible experiment is fine (within authorization; its artifacts get cleaned up later) — it is not the delivery.
-4. **Audit & clean** — the diff matches the plan, acceptance passes, replaced code is deleted, no leftover scripts or temp files.
+1. **Impact check** — search callers, shared state, and configuration for hidden coupling. This is a search, not a matrix.
+2. **Change** — make the edit at the known site.
+3. **Verify** — run the scenario or test that proves the change works.
+4. **Report** — state what changed, what the evidence is, and what was cleaned up.
 
-## Full path
+If the impact check uncovers more coupling than expected, or verification contradicts the intent, switch to the full pipeline.
 
-For high-risk or system-wide work, the same four questions become published stages. Each stage ends with a one-line gate report before the next begins:
+## Full pipeline
 
-> **Stage N: PASS/FAIL** — decisive evidence · next stage (or the stage being returned to)
+Each stage ends with a one-line gate report before the next stage begins:
 
-A FAIL only clears by changing the artifact, evidence, or hypothesis. If no authorized route to the needed evidence exists, report the blocker — never loop on an unproven proposal or fabricate a pass.
+> `Stage N: PASS` — decisive evidence · next stage  (or)  `Stage N: FAIL` — what is missing · which stage to re-enter
 
-**Stage 1 — Impact matrix.** One row per subsystem, *including materially unaffected ones*: owner + code evidence, may-change or not, invariants at risk, regression check needed. Cover where present: ingestion/data, domain logic, risk/validation, request/transaction lifecycle, derived state and balances, accounting, persistence/projections, API/frontend, config/reload, observability, startup/reconnect/recovery, concurrency ownership, operator workflow. Close with the boundaries the plan must respect — without smuggling in a preferred fix.
+**Stage 1 — Impact analysis.** Build a matrix with one row per subsystem — including subsystems expected to be unaffected: owner and code evidence, whether it may change, invariants at risk, and the regression check needed. Cover, where present: data ingestion, domain logic, validation, request/transaction lifecycle, derived state, accounting, persistence, API/frontend, configuration, observability, startup/recovery/shutdown, concurrency ownership, and operator workflow. End with the exact system boundaries the plan must respect. Do not let a preferred solution shape this analysis.
 
-**Stage 2 — Atomic plan.** Per goal: evidence and cause (fact/inference/unknown), `file:line` + symbol targets, behavior and state transitions on normal/failure/restart paths, acceptance including the user's original scenario, dependencies, and explicit non-changes.
+**Stage 2 — Atomic plan.** For every goal: the cause or missing transition (separate fact, inference, and unknown), exact targets as `file:line` + symbol, the resulting behavior and state transitions on normal/failure/recovery paths, acceptance criteria including the user's original scenario, dependencies on other goals, and explicit non-changes. If the cause is unproven, plan a discriminating experiment instead of a speculative repair. Exit check: every goal is atomic and line-specific, and the plan holds against the design principles — violations are fixed by revising the plan here.
 
-**Stage 3 — Experience check.** Apply the design principles below to the produced plan. Record only applicable principles, each with the plan decision it tests and any correction. A weakness found → revise and republish the changed goals (unchanged goals stand; say so). System impact changed → return to Stage 1.
+**Stage 3 — Effectiveness evidence.** Prove each critical mechanism with non-inferential evidence: a discriminating reproduction, a measured A/B comparison, or direct observation under matching conditions. Record baseline, changed condition, result, and limits. Reading code can explain a mechanism; it cannot prove a runtime or performance claim. A small reversible experiment may serve as evidence; its artifacts are temporary and get cleaned up. If no authorized route to the evidence exists, report the blocker. Plan-only tasks end here.
 
-**Stage 4 — Effectiveness evidence.** Non-inferential proof of each critical mechanism: discriminating reproduction, measured A/B, or direct observation under matching conditions. Record baseline, changed condition, result, and limits. Plan-only tasks end here, after cleaning up experiment artifacts.
+**Stage 4 — Implementation.** Recheck the line targets, then implement one goal at a time, verifying each before starting the next. Do not expand scope beyond the approved plan. If implementation disproves a plan assumption, return to Stage 1 or Stage 2 — a redesign disguised as a small adjustment is itself a defect.
 
-**Stage 5 — Implement.** Recheck line targets, then implement goal by goal, verifying each before the next. Discovering a false plan assumption is a return to Stage 1, not a quiet redesign disguised as a small adjustment.
+**Stage 5 — Audit.** Map every goal to the actual changed lines. Review the diff for defects, regressions, and concurrency hazards. Run the acceptance criteria and reproduce the Stage 3 evidence on the delivered path. A passing build is not acceptance.
 
-**Stage 6 — Audit.** Map every goal to the actual changed lines; review the diff for defects, regressions, and concurrency hazards; run acceptance and reproduce the Stage 4 evidence on the delivered path. A passing build is not acceptance.
+**Stage 6 — Cleanup.** Remove experiment artifacts, replaced branches, duplicate state, and overdesign. Confirm the result is the smallest complete expression of the proven plan. If cleanup changed behavior, re-run Stage 5. The final answer then reports the passed path, the evidence, and any honest limits — it supplements the gate reports; it does not replace them.
 
-**Stage 7 — Cleanup.** Remove experiment artifacts, dead branches, duplicate state, and overdesign; confirm the result is the smallest complete expression of the proven plan. If cleanup changed behavior, re-audit. Then hand off: the final answer reports the passed path, evidence, and honest limits — it supplements, not replaces, the gate reports.
+**Return discipline.** A failed stage sends work back to the stage that owns the broken assumption — normally Stage 1 (system understanding) or Stage 2 (the plan). Never patch forward from a broken plan, and never repeat a failed proposal without a new discriminating step.
 
 ## Design principles
 
-A checklist for Standard question 2 and Full Stage 3. Apply what's relevant; don't pad rows to fill a matrix. Domain-specific entries live in optional packs under `references/`, loaded on demand — this repo ships a trading / on-chain transaction example ([references/market-trading.md](references/market-trading.md)); for another domain, derive the analogous pack the same way.
+The reusable lessons. Each one constrains plans and reviews; none chooses a solution in advance. Apply the ones that are relevant; do not pad.
 
-**Product**
+### Delivery
 
-- First usable, then pleasant: intended behavior, required concurrency, latency, stop/restart/recovery, understandable results. "No error" is not done.
-- A phase ships complete to its approved standard — no demo-as-finished, no temporary owners, duplicate paths, or deferred cleanup.
-- Never silence failure by removing core function, hiding work, waiting without bound, or silently skipping steps.
+1. First usable, then pleasant: intended behavior, required concurrency, acceptable latency, understandable results — including stop/restart/recovery. "No error" is not done.
+2. A phase is delivered complete to its agreed standard, or not delivered. No demo as product, no temporary owners, no deferred cleanup.
+3. Never mask failure by removing core function, hiding work, waiting without bound, or silently skipping steps.
 
-**Concurrency**
+### Root cause
 
-- Serialize only real dependencies (a mutation of one shared resource, an identifier produced by a prior step); merely sharing a resource pool does not create a dependency, and submission order does not imply processing order.
-- Own concurrency at the smallest real resource boundary — sequence tokens, shared state, tasks, and multi-step request chains are different things.
-- Stop cancels unbroadcast work promptly; broadcast work is tracked to a definite outcome.
+4. Trace: original input → lifecycle → first invalid transition → the smallest change that removes the cause.
+5. Containment is not repair. Remove the generator before adding retries, guards, compensation, or broad locks.
+6. After a failed fix, stop patching: return to the raw input, back out the ineffective changes, and re-derive.
+7. Check analogous protocols and shared paths for the same cause — without expanding edits beyond the evidence.
 
-**Performance**
+### Concurrency
 
-- Latency, availability, and throughput are functionality, not later polish. Unbounded queues, sleeps, broad serialization, and silent throttling are defect camouflage, not fixes.
-- An optimization claim needs a measured before/after, with local delay separated from network or external-service delay.
+8. Serialize only true dependencies: a single writer of a resource, or a value produced by a required earlier step. Sharing a resource pool alone is not a dependency, and submission order does not imply processing order.
+9. Own each lock at the smallest real resource boundary. Different resources — sequence tokens, shared state, tasks, request chains — are different owners.
+10. Cancellation is prompt for work not yet externally visible; work already visible is tracked to a definite outcome and never abandoned.
 
-**Root cause**
+### Performance
 
-- Trace original input → lifecycle → first invalid transition → the smallest change that removes the cause. After a failed fix, stop patching; return to the raw input and back out ineffective changes.
-- Check analogous protocols and shared paths for the same cause — without expanding edits beyond the evidence.
+11. Latency, availability, and throughput are functionality, not later polish.
+12. Unbounded queues, sleeps, and silent throttling are defect camouflage. A necessary queue has bounds, measured delay, and defined saturation behavior.
+13. An optimization claim requires a measured before/after, with delay attributed to the correct layer: local computation, lock, queue, network, or external service.
 
-**Architecture & economy**
+### Architecture and economy
 
-- Preserve owner boundaries (data/RPC, protocol, execution, strategy, API, persistence, presentation); abstract stable shared capability behind a narrow adapter, not one algorithm or incident.
-- Budget files, lines, states, and concepts against outcome value — a local bug doesn't justify a state machine.
-- Errors name the relevant object, operation, upstream response, and termination cause; "check the logs" is not an operator answer.
+14. Preserve ownership boundaries: data access, protocol/integration, domain execution, application logic, API, persistence, presentation.
+15. Abstract stable, shared capability behind narrow interfaces — not one algorithm, one page, or one incident.
+16. Budget files, lines, states, and concepts against the value they produce. A local bug does not justify a state machine.
+17. Directory and dependency structure is part of the deliverable. No catch-all files, leftover scripts, or "later" cleanup.
 
-**Testing**
+### Errors and operations
 
-- Test the user's original scenario and its lifecycle — normal, failure, restart/recovery, final-state reconciliation — not just compilation or one happy path.
+18. An error message names the object, the operation, the upstream response, and the termination cause. "Check the logs" is not an operator answer.
+19. Lifecycle states — starting, normal, degraded, stopping, recovering, cleaning up — are observable where they matter.
+
+### Testing
+
+20. Acceptance tests the user's original scenario and its lifecycle: normal, failure, restart/recovery, and final-state reconciliation. Compilation and one happy path prove nothing.
