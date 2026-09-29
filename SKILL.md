@@ -1,96 +1,156 @@
 ---
 name: scope-code-change
-description: Scope and right-size every code change before implementation. Use before writing or modifying code for features, bug fixes, refactors, optimizations, or behavior-changing configuration so the change respects the project's primary purpose, requirement priority, whole-system impact, cross-layer adaptation, complexity budget, and long-term maintainability.
+description: Execute a code-change task through strict staged feedback: whole-system impact matrix, line-specific plan, experience gate, evidence-based effectiveness gate, authorized implementation and code audit, then cleanup gate. Do not advance or claim completion without passing each applicable stage.
 ---
 
 # Scope Code Change
 
-Before editing code, establish:
+## This is a staged execution instruction
 
-- Project trunk: the primary behavior the project exists to deliver.
-- User outcome: restate what must change in plain language, including what the user is not asking for.
-- Requirement rank: trunk, supporting, secondary, or rare tail event.
-- Root cause: identify the first transition where valid state becomes invalid and the incorrect assumption responsible.
-- Minimum outcome: the smallest end-to-end behavior that satisfies the request.
-- Change budget: expected files, approximate added lines, and new concepts.
+This skill is neither a one-pass checklist nor a general design manifesto. Work on **one stage at a time**. First produce that stage's complete artifact; then audit the artifact; only then enter the next stage. Do not announce that several later gates passed in one final answer. Prior experience constrains a proposed plan, but does not choose the plan in advance.
 
-State these briefly in commentary before implementation. Base them on the current repository, not the request in isolation.
+At the end of **every** stage, visibly report in commentary:
 
-## Whole-system impact gate
+- **Result:** the complete artifact or a link to it, with the decisive findings.
+- **Exit:** the condition required to leave this stage.
+- **Audit:** PASS or FAIL, with evidence and any unresolved item.
+- **Next / return:** the exact stage being entered, or the stage to which work returns.
 
-Treat every code change as a system change. Before editing:
+A FAIL does not become PASS by rewording the verdict. Re-enter only after changing the artifact, evidence, or hypothesis. If a required experiment is impossible within the user's authorization, report that blocker; do not loop over the same unproven proposal or claim completion.
 
-- Map the affected producers, consumers, state, persistence, APIs, configuration, logs and metrics, startup/reload/shutdown paths, runtime modes, and operator or UI behavior.
-- Identify the shared invariants and every required adaptation. Do not update one representation while leaving another stale.
-- Check second-order effects on correctness, performance, reliability, security, data consistency, operations, and maintenance.
-- Prefer a globally coherent change over a locally elegant one. Reject a local optimization that shifts complexity, ambiguity, or failure into the rest of the project.
+A request for a plan does not authorize production code edits, deployment, or live trading. Diagnostic tests and experiments must remain within the user's authorization. If evidence requires additional authority, ask before taking that action.
 
-Do not keep this assessment implicit. Before implementation, output an explicit impact matrix covering every project module or subsystem discovered in the repository, including both affected and unaffected areas. For each area, state:
+## Stage 1 — whole-system impact matrix
 
-- Whether it changes.
-- Why it changes or remains unchanged.
-- Which invariant, interface, or state transition was checked.
-- What adaptation or verification is required.
+**Do this first, before choosing an implementation.** Inspect the actual repository, current behavior, user workflow, relevant runtime evidence, and worktree. Identify the project's primary capability and what the request must change or preserve. The impact matrix is a forward-looking constraint: it prevents a local solution from silently changing the rest of the system.
 
-The matrix must cover, where present: input/data ingestion, strategy and signals, gates and risk controls, order creation, amendment and cancellation, execution and fill state transitions, partial fills, positions and exposure, accounting and PnL, persistence and database projections, APIs and frontend, configuration and reload, logs and metrics, startup/reconnect/recovery/shutdown, concurrency and resource ownership, live and simulation modes, tests, deployment, and operator workflows.
+**Result:** publish a matrix for every discovered subsystem, including materially unaffected ones. Each row states current owner and code evidence, whether it may change, affected inputs/outputs and lifecycle transitions, invariants at risk, and the adaptation or regression check needed. Cover, where present: ingestion and market data; strategy/signals; risk/admission; order or transaction creation/amendment/cancellation/execution; fills and partial fills; positions/exposure; accounting/PnL; persistence/projections; API/frontend; configuration/reload; logs/metrics; startup/reconnect/recovery/shutdown; concurrency/resource ownership; runtime modes; tests/deployment; and operator workflow. Group unaffected areas only when the same evidence and reason genuinely apply.
 
-Do not omit a module because it appears unaffected; explicitly record why it is unaffected. Do not use token, time, or assessment-cost budgets to shorten pre-change reasoning. Keep the eventual implementation small, but make the pre-change system analysis exhaustive enough to prevent local changes from causing global semantic drift. Do not start implementation until the local change's role in the whole system and every required cross-layer adaptation are explicit.
+End with the **impact conclusion**: the exact system boundaries the future plan must respect, known failure or capability gap, credible unknowns, and where evidence is still needed. Do not smuggle the preferred fix into this conclusion.
 
-Trace the complete lifecycle of every stateful object touched by the change. For order-related changes, this normally includes creation, admission, placement, open, renewal, cancellation, expiry, rejection, partial fill, full fill, settlement, persistence, projection, display, reload, reconnect, and shutdown. Confirm mutually interacting controls such as price tolerance, liquidity gates, flow controls, stale-book protection, and recovery behavior rather than evaluating each control in isolation.
+**Exit audit:** verify the traced producer → state → consumer paths and applicable lifecycle are complete; affected and unaffected areas have reasons; no core behavior or second-order effect is missing. On FAIL, remain in Stage 1 and complete the matrix. On PASS, enter Stage 2.
 
-## Elimination-first
+## Stage 2 — concrete, indivisible plan
 
-Before designing how to handle a problem, identify the mechanism that repeatedly creates it and ask whether that mechanism can be removed or made impossible. Prefer restoring the violated invariant, removing the bad input or assumption, or deleting the unnecessary state/path over adding guards, retries, repair jobs, and recovery branches downstream.
+Build the plan **under the Stage 1 impact conclusion**, not from abstract principles. An atomic goal is the smallest independently verifiable behavior change; it may touch multiple files, but must not combine separable outcomes. Split a goal joined by "and" unless the two changes cannot work or be verified separately.
 
-Treat recurring instances of the same symptom as evidence that the generating mechanism still exists. Better containment is not progress toward elimination. Add containment or recovery only after the source is removed, or after concrete evidence shows that the source is external and cannot be eliminated within scope.
+**Result:** output the complete plan. For every atomic goal provide:
 
-## Root-cause gate
+1. Current evidence and the precise cause or missing transition; separate fact, inference, and unknown. For a bug: trigger → actual path → first invalid transition → symptom. If cause is unproven, plan a discriminating experiment instead of a speculative repair.
+2. Exact current code target as **file:line plus symbol/function**. State the lines or operation to remove, replace, or insert and the resulting behavior/data/state transition. For a new file, name its path, owner, calling site, and insertion point. Line numbers refer to the inspected baseline and must be rechecked before editing.
+3. Required interfaces, conditions, normal path, failure path, stop/restart/recovery behavior, and the old logic to remove or preserve where applicable.
+4. Observable acceptance for that one goal, including the original user scenario and any necessary performance/concurrency measure.
+5. Its dependency on other goals, material code/concept cost, and explicit non-changes.
 
-For bug fixes, do not edit behavior until all of these can be stated concretely:
+The plan must not contain standalone "principles," generic architecture theory, or untestable directions such as "optimize," "strengthen," "reuse," or "add retries." Put principles in Stage 3; put concrete modifications here. A reader must know what will change, at which code sites, and how to verify it.
 
-1. The original failure and the exact path that produces it.
-2. The first point where correct input becomes incorrect state or output.
-3. The wrong code assumption, supported by logs, a reproduction, or observed values.
-4. The smallest state transition that removes the cause.
+**Exit audit:** every goal is atomic, line-specific, consistent with the Stage 1 matrix, and has an observable result. On local incompleteness, revise Stage 2 and output the full changed plan. If a new effect or owner is discovered, return to Stage 1. On PASS, enter Stage 3.
 
-Classify every proposed change as:
+## Stage 3 — experience gate, then revised plan
 
-- **Root fix:** prevents the invalid state from being created.
-- **Containment:** limits damage after the state is already invalid.
-- **Recovery:** restores state after failure.
-- **Evidence:** makes an unknown link observable.
+Now apply the experience registry below **to the plan that Stage 2 already produced**. This gate is for high-frequency failure patterns and developer learning, not for mechanically copying an old solution.
 
-Containment, recovery, and evidence may be useful, but must not be presented or accumulated as the root fix. If evidence is insufficient, add only the minimum observability needed and wait for proof before changing behavior.
+**Result:** publish an experience matrix with applicable principle IDs, the plan decision being tested, repository/runtime evidence, PASS/FAIL/UNKNOWN, and the exact correction or test needed. Explicitly check whether the plan preserves the primary capability, first-usable behavior, required concurrency/latency, real ownership, code economy, and complete phase delivery. Do not include a principle merely to fill a row, and do not omit an applicable one.
 
-After each attempted fix, test the user's original symptom. If it remains, invalidate or revert the attempt before adding another. After two failed attempts, stop patching and rebuild the causal chain from the raw input boundary. A fix is not understood if it cannot be explained in one sentence without words such as "somehow", "probably", or "should".
+If the matrix exposes a weakness, change the plan and **output the full revised plan**, not just a list of comments. Re-audit the changed rows. If the revision changes system impact, return to Stage 1 and regenerate the downstream plan. UNKNOWN on a design-critical principle is not PASS.
 
-## Decision rules
+**Exit audit:** all applicable design constraints are supported; the revised plan still consists of precise atomic goals. On FAIL, loop through Stage 2 → Stage 3, or Stage 1 if system effects changed. On PASS, enter Stage 4.
 
-1. Protect the trunk. A secondary feature must not materially enlarge, slow, obscure, or destabilize the primary system.
-2. Eliminate the generator first. Prefer making the failure impossible over detecting, repairing, retrying, or limiting it forever.
-3. Reuse existing paths. Do not add a new layer, subsystem, ledger, state machine, or framework unless the minimum outcome cannot work without it.
-4. Implement the common path first. Handle failures that are likely or costly; defer low-probability tail events until they occur or the user explicitly prioritizes them.
-5. Keep secondary features deliberately modest. Functional and maintainable is enough; do not perfect them at the expense of the main program.
-6. Preserve semantics outside the request. Do not redesign strategy, architecture, or execution behavior merely to make the local change cleaner.
-7. Match verification to risk. Test the changed path and critical invariants; do not expand into an unrelated review.
-8. Fix the producer before the consumer. When bad state is detected downstream, first correct the code that creates it; do not grow downstream guards unless the root fix cannot cover a costly failure mode.
+## Stage 4 — effectiveness gate
 
-## Complexity guard
+Before treating a plan as valid, prove the **key proposed mechanism**, not merely its plausibility. The evidence must be non-inferential: a reproduction with a discriminating test, measured data, a controlled comparison/A/B experiment, or a directly observed equivalent path under matching conditions. Code reading and documentation can explain a mechanism, but cannot alone prove that a proposed runtime or performance fix works. For trading-performance claims, use relevant real testnet measurements when authorized and separate local delay from external RPC, venue, or chain delay.
 
-Compare the proposed change with the whole repository. If a supporting or secondary feature approaches a material fraction of the project, introduces several new concepts, or exceeds roughly twice the initial line budget, stop editing and simplify the design.
+A small reversible experiment may test the mechanism; it is not the delivered implementation and its artifacts must later be cleaned. Record baseline, changed condition, observed result, sample/limits, and why the result supports each critical plan goal. Do not substitute one happy-path run for lifecycle or stress evidence when those are the claim.
 
-For a localized bug, broad recovery machinery, new state machines, or several hundred lines are presumptively out of scope. Require concrete evidence that the root cause spans that much surface before proceeding.
+**Result:** output the evidence and a per-critical-goal effectiveness verdict. State exactly what is proven, what is not, and whether the proposed root fix is supported.
 
-Prefer fewer states, fewer branches, fewer files, and one obvious data flow. Treat maintainability as part of the requirement, not cleanup after it.
+**Exit audit:** PASS only when non-inferential evidence supports every critical mechanism. If evidence contradicts the plan, is absent, or cannot be obtained, mark FAIL and return to **Stage 1**, revising the impact understanding and hypothesis before producing another plan. Do not cycle through the same plan without a new discriminating step. If no authorized route to evidence exists, report the blocker rather than fabricate a PASS.
 
-## Mandatory delivery audit
+On PASS:
+- If the user requested **only a plan**, skip the code implementation and code audit stages and enter Stage 7.
+- If the user authorized a **code change**, enter Stage 5.
 
-After every code change, audit the finished implementation and give an explicit `PASS` or `FAIL` verdict for all three gates:
+## Stage 5 — implement the authorized plan
 
-1. **Problem solved:** reproduce or test the original symptom and prove that its generating mechanism is gone. Passing compilation alone is insufficient.
-2. **System impact:** inspect every affected integration and runtime mode, plus the unchanged main path. Confirm the local fix did not degrade overall correctness, performance, reliability, or maintainability.
-3. **Cleanup complete:** delete superseded code, unreachable branches, obsolete state, configuration, adapters, temporary tests, and scaffolding. Confirm the final diff is the smallest clear implementation.
+Inspect and preserve unrelated worktree changes. Recheck Stage 2 line references, then implement the approved atomic goals in their durable owners. Do not silently change semantics, add broad serialization, or expand scope outside the approved plan. Remove replaced behavior instead of maintaining parallel paths.
 
-If any gate fails or cannot be proven, do not deliver. Revert, simplify, or rewrite the implementation, then repeat the complete audit until all three pass.
+For a multi-goal plan, complete and verify one atomic goal before beginning the next. Report its actual diff and immediate evidence using Result → Exit → Audit → Next/return. If implementation reveals a false plan assumption or new system impact, return to Stage 1 rather than disguising a redesign as a small code adjustment.
 
-The final delivery must state the three verdicts and their concrete evidence. Recheck syntax and build validity, obvious bugs, lifecycle and resource cleanup, concurrency hazards, every producer and consumer identified before editing, and all required configuration, logging, metrics, documentation, and operational adaptations.
+After all goals are implemented, enter Stage 6. Implementation alone is not acceptance.
+
+## Stage 6 — code audit gate
+
+**Result:** map every Stage 2 goal to actual changed file:line locations and demonstrate that its intended behavior and acceptance criteria were implemented. Review the diff for bugs, concurrency/resource hazards, error propagation, lifecycle and recovery, permissions/data integrity, performance, and regressions in the relevant unchanged path. Run the promised tests and reproduce the Stage 4 effectiveness result in the implemented path.
+
+**Exit audit:** PASS only if the code follows the approved plan, has no material defect found in review, passes the agreed acceptance tests, and reproduces the effectiveness evidence. A build alone is insufficient. On implementation FAIL, return to Stage 5, fix and repeat Stage 6. If the evidence invalidates the plan itself, return to Stage 1. On PASS, enter Stage 7.
+
+## Stage 7 — cleanup gate
+
+This gate applies to **both** plan-only and implementation tasks. For plan-only work, check that diagnostic experiments left no artifacts and the final plan has no redundant design or unsupported scope. For implemented work, inspect intermediate scripts, temporary test files, process artifacts, obsolete branches/adapters/states/configuration, duplicated logic, overdesign, dead code, and code that can be simplified without changing behavior. Follow the project's rule for whether permanent tests belong in the repository.
+
+**Result:** list what was removed or simplified and what remains intentionally. Verify that the final artifact is the smallest complete expression of the proven plan.
+
+**Exit audit:** on FAIL, re-enter Stage 7 and clean again. If cleanup changes behavior, rerun Stage 6 and any affected effectiveness checks before returning here. On PASS, end the workflow and hand off the result. The final answer must report the passed path, evidence, and any honest external limit; it cannot replace the staged feedback already given.
+
+## Experience registry for Stage 3
+
+These are the accumulated design and development lessons. They are constraints on a proposed plan, not a script for choosing it. Apply the CEX/DEX-specific entries only in market-value-management; for another project derive the analogous project-specific lessons instead.
+
+### Product and delivery
+
+1. **First usable, then pleasant to use.** Usability includes intended behavior, required concurrency, acceptable latency, stop/restart/recovery, and understandable results. "No error" is not enough.
+2. Do not deliver a demo or disposable "minimum closed loop" as a finished phase. A small phase must be complete to its approved test-environment standard.
+3. Complete, test, accept, and clean one phase before extending it; deliberate work beats repeated broad rework.
+4. Each phase must advance the intended whole system, not leave temporary owners, duplicate paths, a hard-coded market, unused placeholders, or deferred cleanup.
+5. Do not silence failure by removing core function, hiding work, waiting without bound, or silently skipping actions.
+
+### CEX/DEX project trunk — market-value-management only
+
+6. DEX extends the existing CEX trading system; it is not an isolated AMM demo. Reuse matching authentication, catalog, parameters/templates, task lifecycle, assets, history, observability, alerts, and recovery capabilities.
+7. Map CEX and DEX by user capability and lifecycle, not false internal equivalence. Swap is not an IOC order; a transaction hash is not a fill; an AMM pool is not an order book; LP is not a resting order.
+8. Support future chains, venues, protocols, and markets through narrow adapters; protocol-specific math does not belong in the common execution path.
+9. Preserve a viable path for Swap, liquidity provision, volume experiments, and cross-market price following.
+
+### Function and concurrency
+
+10. The feature must work before its protection is called successful; a safeguard that disables it is not a repair.
+11. Verify the current user-approved concurrency contract. Where independent work is required, nonce order alone does not imply receipt-by-receipt serialization; do not impose obsolete concurrency requirements.
+12. Serialize only real dependencies, such as one position mutation or an ID/parameter produced by a prior transaction; a shared pool alone is not dependency.
+13. Own concurrency at the smallest real resource boundary: nonce, pool state, position, task, and transaction chain differ.
+14. Stop cancels unbroadcast work promptly; broadcast work remains tracked to a definite outcome.
+
+### Performance
+
+15. Latency, availability, reliability, and throughput are trading functionality, not later polish.
+16. Reject unbounded queues, cooling, sleeps, broad serialization, and silent throttling as defect camouflage; necessary queues need bounds, measured delay, and saturation behavior.
+17. Prove trading optimizations with relevant real testnet A/B evidence when authorized; replay and intuition alone do not establish improvement.
+18. Measure local computation, locks, queueing, RPC/network, exchange acceptance, broadcast, inclusion, confirmation, and state projection separately where applicable.
+
+### Root-cause repair
+
+19. Identify original input, lifecycle, first invalid transition, false assumption, and the smallest transition that removes the cause.
+20. Eliminate the generator before adding retries, cooling, guards, compensation, broad locks, or extra states; containment is not root repair.
+21. Check analogous protocols, algorithms, venues, and shared paths for the same cause without expanding edits beyond evidence.
+22. After failed fixes, stop patching; return to raw input and remove ineffective changes.
+
+### Architecture and code economy
+
+23. Preserve owner boundaries among data/RPC/WS, protocol, execution/recovery, strategy, API, persistence, and presentation.
+24. Abstract stable shared capability and a narrow adapter, not one algorithm, protocol, page, or incident.
+25. Directory and dependency structure are deliverables; no provisional directory, catch-all file, leftover utility/test script, or "later" cleanup.
+26. Budget files, lines, states, and concepts against outcome value; a local bug does not automatically justify a large state machine.
+27. Delete replaced branches, locks, adapters, duplicate state, and temporary validation artifacts.
+
+### Interface and operations
+
+28. Start from the operator's action and question; for UX, inspect the existing surface before inventing another page or backend subsystem.
+29. Keep CEX/DEX interaction and visual language coherent while representing AMM-specific facts honestly; do not fabricate order-book, order, or fill semantics.
+30. Errors identify relevant wallet/account, asset, operation, venue/protocol response, and termination cause; "check logs" is not an operator answer.
+31. Prepared, broadcast, pending, confirmed, failed, unknown, stop, restart recovery, and final cleanup must be observable where relevant.
+
+### Testing and acceptance
+
+32. Test the user's original scenario, not just compilation, isolated tests, or one successful transaction.
+33. Acceptance covers required concurrency, normal/failure/stop/restart/recovery and final state or asset reconciliation where relevant.
+34. Authorized real testnet experiments have a question, measured observations, and conclusion; do not avoid them merely because they transact or run them aimlessly.
+35. Complete only after the applicable Stage 1–7 exit audits pass. Evidence, not confidence or a one-shot summary, determines each verdict.
